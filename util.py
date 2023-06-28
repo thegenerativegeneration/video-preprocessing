@@ -116,14 +116,14 @@ def scheduler(data_list, fn, args):
 def save(path, frames, format):
     if format == '.mp4':
         imageio.mimsave(path, frames)
-    elif format == '.png':
+    elif format in ['.png', '.jpg', '.webp']:
         if os.path.exists(path):
             print ("Warning: skiping video %s" % os.path.basename(path))
             return
         else:
             os.makedirs(path)
         for j, frame in enumerate(frames):
-            imageio.imsave(os.path.join(path, str(j).zfill(7) + '.png'), frames[j]) 
+            imageio.imsave(os.path.join(path, str(j).zfill(7) + format), frames[j])
     else:
         print ("Unknown format %s" % format)
         exit()

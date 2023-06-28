@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 import imageio
 import os
@@ -6,8 +5,6 @@ import subprocess
 from multiprocessing import Pool
 from itertools import cycle
 import warnings
-import glob
-import time
 from tqdm import tqdm
 from util import save
 from argparse import ArgumentParser
@@ -19,6 +16,8 @@ DEVNULL = open(os.devnull, 'wb')
 
 def download(video_id, args):
     video_path = os.path.join(args.video_folder, video_id + ".mp4")
+    if os.path.exists(video_path):
+        return video_path
     subprocess.call([args.youtube, '-f', "''best/mp4''", '--write-auto-sub', '--write-sub',
                      '--sub-lang', 'en', '--skip-unavailable-fragments',
                      "https://www.youtube.com/watch?v=" + video_id, "--output",
@@ -71,6 +70,9 @@ def run(data):
         path = first_part + '#' + str(entry['start']).zfill(6) + '#' + str(entry['end']).zfill(6) + '.mp4'
         save(os.path.join(args.out_folder, partition, path), entry['frames'], args.format)
 
+def filter_bbox(row, min_height=0, min_width=0):
+    left, top, right, bot = list(map(int, row['bbox'].split('-')))
+    return (right - left) >= min_width and (bot - top) >= min_height
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -83,6 +85,8 @@ if __name__ == "__main__":
  
     parser.add_argument("--image_shape", default=(256, 256), type=lambda x: tuple(map(int, x.split(','))),
                         help="Image shape, None for no resize")
+    parser.add_argument("--min_shape", default=(256, 256), type=lambda x: tuple(map(int, x.split(','))),
+                        help="Minimum shape of bounding box")
 
     args = parser.parse_args()
     if not os.path.exists(args.video_folder):
@@ -94,6 +98,11 @@ if __name__ == "__main__":
             os.makedirs(os.path.join(args.out_folder, partition))
 
     df = pd.read_csv(args.metadata)
+    df = df[df.apply(lambda row: filter_bbox(row, args.min_shape[0], args.min_shape[1]), axis=1)]
+
+    print('Total number of videos: %d' % len(set(df['video_id'])))
+
+
     video_ids = set(df['video_id'])
     pool = Pool(processes=args.workers)
     args_list = cycle([args])
