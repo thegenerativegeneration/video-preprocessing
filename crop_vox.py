@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pandas as pd
 import imageio
@@ -9,6 +11,7 @@ import time
 from util import bb_intersection_over_union, join, scheduler, crop_bbox_from_frames, save
 from argparse import ArgumentParser
 from skimage.transform import resize
+
 warnings.filterwarnings("ignore")
 
 DEVNULL = open(os.devnull, 'wb')
@@ -48,11 +51,12 @@ def estimate_bbox(person_id, video_id, video_path, fa, args):
             val = d.iloc[i]
             mult = frame.shape[0] / REF_FRAME_SIZE
             frame = resize(frame, (REF_FRAME_SIZE, int(frame.shape[1] / mult)), preserve_range=True)
- 
+
             if args.dataset_version == 1:
                 x, y, w, h = val['X '], val['Y '], val['W '], val['H ']
             else:
-                x, y, w, h = val['X '] *  frame.shape[1], val['Y '] * frame.shape[0], val['W '] * frame.shape[1], val['H '] * frame.shape[0]
+                x, y, w, h = val['X '] * frame.shape[1], val['Y '] * frame.shape[0], val['W '] * frame.shape[1], val[
+                    'H '] * frame.shape[0]
             bbox = extract_bbox(frame, (x, y, x + w, y + h), fa)
             bbox_list.append(bbox * mult)
     except IndexError:
@@ -63,7 +67,7 @@ def estimate_bbox(person_id, video_id, video_path, fa, args):
 
 def store(frame_list, tube_bbox, video_id, utterance, person_id, start, end, video_count, chunk_start, args):
     out, final_bbox = crop_bbox_from_frames(frame_list, tube_bbox, min_frames=args.min_frames,
-                                            image_shape=args.image_shape, min_size=args.min_size, 
+                                            image_shape=args.image_shape, min_size=args.min_size,
                                             increase_area=args.increase)
     if out is None:
         return []
@@ -74,7 +78,7 @@ def store(frame_list, tube_bbox, video_id, utterance, person_id, start, end, vid
     partition = 'test' if person_id in TEST_PERSONS else 'train'
     save(os.path.join(args.out_folder, partition, name), out, args.format)
     return [{'bbox': '-'.join(map(str, final_bbox)), 'start': start, 'end': end, 'fps': REF_FPS,
-             'video_id': '#'.join([video_id, person_id]), 'height': frame_list[0].shape[0], 
+             'video_id': '#'.join([video_id, person_id]), 'height': frame_list[0].shape[0],
              'width': frame_list[0].shape[1], 'partition': partition}]
 
 
@@ -104,7 +108,8 @@ def crop_video(person_id, video_id, video_path, args):
 
             if bb_intersection_over_union(initial_bbox, bbox) < args.iou_with_initial or len(
                     frame_list) >= args.max_frames:
-                chunks_data += store(frame_list, tube_bbox, video_id, utterance, person_id, start, i, video_count, chunk_start,
+                chunks_data += store(frame_list, tube_bbox, video_id, utterance, person_id, start, i, video_count,
+                                     chunk_start,
                                      args)
                 video_count += 1
                 initial_bbox = bbox
@@ -115,20 +120,35 @@ def crop_video(person_id, video_id, video_path, args):
             frame_list.append(frame)
     except IndexError as e:
         None
-    
+
     chunks_data += store(frame_list, tube_bbox, video_id, utterance, person_id, start, i + 1, video_count, chunk_start,
                          args)
 
     return chunks_data
 
 
-def download(video_id, args):
+def download(video_id, min_width, min_height, args):
     video_path = os.path.join(args.video_folder, video_id + ".mp4")
-    subprocess.call([args.youtube, '-f', "''best/mp4''", '--write-auto-sub', '--write-sub',
-                     '--sub-lang', 'en', '--skip-unavailable-fragments',
-                     "https://www.youtube.com/watch?v=" + video_id, "--output",
-                     video_path], stdout=DEVNULL, stderr=DEVNULL)
+    if not os.path.exists(video_path):
+        subprocess.call(
+            [args.youtube, '-f', f"''bestvideo[height>={min_height}][width>={min_width}][ext=mp4]''", '--write-auto-sub', '--write-sub',
+             '--sub-lang', 'en', '--skip-unavailable-fragments',
+             "https://www.youtube.com/watch?v=" + video_id, "--output",
+             video_path], stdout=DEVNULL, stderr=DEVNULL)
     return video_path
+
+
+def video_info(video_id):
+    # Get JSON output with video details
+    result = subprocess.run(
+        ['yt-dlp', f'https://www.youtube.com/watch?v={video_id}', '--dump-json', '--skip-download'],
+        capture_output=True,
+        text=True
+    )
+
+    # Load the output as a Python dictionary
+    video_info_dict = json.loads(result.stdout)
+    return video_info_dict
 
 
 def split_in_utterance(person_id, video_id, args):
@@ -166,19 +186,39 @@ def split_in_utterance(person_id, video_id, args):
 
 def run(params):
     person_id, device_id, args = params
+    min_width, min_height = args.min_width, args.min_height
     os.environ['CUDA_VISIBLE_DEVICES'] = device_id
     # update the config options with the config file
     if args.estimate_bbox:
         import face_alignment
         fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=False)
     video_folder = os.path.join(args.annotations_folder, person_id)
-    
+
     chunks_data = []
     for video_id in os.listdir(video_folder):
+        try:
+            video_info_dict = video_info(video_id)
+        except:
+            print("Error getting video info for %s" % video_id)
+            continue
+        has_high_resolution = False
+        available_resolutions = []
+        for fmt in video_info_dict['formats']:
+            available_resolutions.append((fmt['height'], fmt['width'], fmt['video_ext']))
+            if fmt['height'] is None or fmt['width'] is None or fmt['video_ext'] != 'mp4':
+                continue
+            if fmt['height'] >= min_height and fmt['width'] >= min_width:
+                has_high_resolution = True
+                break
+        print(f"Available resolutions: {available_resolutions}")
+
+        if not has_high_resolution:
+            print(f"Skipping {video_id} due to low resolution.")
+            continue
         intermediate_files = []
         try:
             if args.download:
-                video_path = download(video_id, args)
+                video_path = download(video_id, min_width, min_height, args)
                 intermediate_files.append(video_path)
 
             if args.split_in_utterance:
@@ -186,6 +226,7 @@ def run(params):
                 intermediate_files += chunk_names
 
             if args.estimate_bbox:
+                print("Estimating bbox for %s" % video_id)
                 path = os.path.join(args.chunk_folder, video_id + '*.mp4')
                 for chunk in glob.glob(path):
                     while True:
@@ -201,11 +242,12 @@ def run(params):
                                 break
 
             if args.crop:
+                print("Cropping %s" % video_id)
                 path = os.path.join(args.chunk_folder, video_id + '*.mp4')
                 for chunk in glob.glob(path):
                     if not os.path.exists(os.path.join(args.bbox_folder, os.path.basename(chunk)[:-4] + '.txt')):
-                       print ("BBox not found %s" % chunk)
-                       continue
+                        print("BBox not found %s" % chunk)
+                        continue
                     chunks_data += crop_video(person_id, video_id, chunk, args)
 
             if args.remove_intermediate_results:
@@ -213,14 +255,18 @@ def run(params):
                     if os.path.exists(file):
                         os.remove(file)
         except Exception as e:
-            print (e)
+            print(e)
     return chunks_data
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
 
-    parser.add_argument("--dataset_version", default=1, type=int, choices=[1, 2], help='Version of Vox celeb dataset 1 or 2')
+    parser.add_argument("--dataset_version", default=1, type=int, choices=[1, 2],
+                        help='Version of Vox celeb dataset 1 or 2')
+
+    parser.add_argument("--min_width", default=1920, type=int, help='Minimal allowed width')
+    parser.add_argument("--min_height", default=1080, type=int, help='Minimal allowed height')
 
     parser.add_argument("--iou_with_initial", type=float, default=0.25, help="The minimal allowed iou with inital bbox")
     parser.add_argument("--image_shape", default=(256, 256), type=lambda x: tuple(map(int, x.split(','))),
@@ -243,8 +289,8 @@ if __name__ == "__main__":
     parser.add_argument("--workers", default=1, type=int, help='Number of parallel workers')
     parser.add_argument("--device_ids", default="0", help="Names of the devices comma separated.")
 
-    parser.add_argument("--data_range", default=(0, 10000), type=lambda x: tuple(map(int, x.split('-'))), help="Range of ids for processing")
- 
+    parser.add_argument("--data_range", default=(0, 10000), type=lambda x: tuple(map(int, x.split('-'))),
+                        help="Range of ids for processing")
 
     parser.add_argument("--no-download", dest="download", action="store_false", help="Do not download videos")
     parser.add_argument("--no-split-in-utterance", dest="split_in_utterance", action="store_false",
@@ -267,19 +313,32 @@ if __name__ == "__main__":
     if args.dataset_version == 1:
         TEST_PERSONS = ['id' + str(i) for i in range(10270, 10310)]
     else:
-        TEST_PERSONS = ['id07874', 'id00017', 'id00081', 'id09017', 'id08374', 'id04276', 'id03862', 'id00817', 'id00154',
-                        'id02317', 'id06484', 'id07312', 'id03041', 'id05124', 'id03980', 'id05459', 'id04627', 'id08548',
-                        'id01333', 'id02725', 'id05999', 'id06310', 'id08149', 'id04094', 'id08392', 'id02577', 'id01460',
-                        'id02057', 'id08701', 'id00812', 'id00926', 'id03839', 'id06104', 'id07426', 'id08552', 'id01567',
-                        'id03382', 'id02286', 'id03347', 'id08456', 'id02745', 'id00061', 'id01066', 'id03969', 'id06913',
-                        'id01228', 'id02086', 'id08911', 'id01298', 'id06811', 'id07961', 'id04536', 'id01509', 'id01892',
-                        'id08696', 'id06692', 'id01593', 'id01000', 'id01618', 'id04253', 'id04657', 'id04656', 'id03030',
-                        'id01437', 'id02548', 'id01106', 'id04570', 'id05176', 'id05816', 'id00562', 'id02181', 'id07802',
-                        'id03978', 'id04030', 'id03789', 'id04295', 'id00866', 'id07868', 'id04119', 'id01989', 'id07414',
-                        'id01041', 'id03178', 'id04232', 'id03127', 'id06209', 'id03677', 'id04006', 'id05850', 'id02576',
-                        'id05594', 'id01541', 'id05055', 'id07354', 'id01224', 'id03524', 'id02445', 'id07663', 'id05015',
-                        'id07494', 'id04950', 'id04478', 'id02685', 'id02542', 'id05714', 'id02465', 'id05654', 'id05202',
-                        'id00419', 'id03981', 'id04366', 'id07396', 'id02019', 'id01822', 'id06816', 'id07621', 'id07620', 'id04862']
+        TEST_PERSONS = ['id07874', 'id00017', 'id00081', 'id09017', 'id08374', 'id04276', 'id03862', 'id00817',
+                        'id00154',
+                        'id02317', 'id06484', 'id07312', 'id03041', 'id05124', 'id03980', 'id05459', 'id04627',
+                        'id08548',
+                        'id01333', 'id02725', 'id05999', 'id06310', 'id08149', 'id04094', 'id08392', 'id02577',
+                        'id01460',
+                        'id02057', 'id08701', 'id00812', 'id00926', 'id03839', 'id06104', 'id07426', 'id08552',
+                        'id01567',
+                        'id03382', 'id02286', 'id03347', 'id08456', 'id02745', 'id00061', 'id01066', 'id03969',
+                        'id06913',
+                        'id01228', 'id02086', 'id08911', 'id01298', 'id06811', 'id07961', 'id04536', 'id01509',
+                        'id01892',
+                        'id08696', 'id06692', 'id01593', 'id01000', 'id01618', 'id04253', 'id04657', 'id04656',
+                        'id03030',
+                        'id01437', 'id02548', 'id01106', 'id04570', 'id05176', 'id05816', 'id00562', 'id02181',
+                        'id07802',
+                        'id03978', 'id04030', 'id03789', 'id04295', 'id00866', 'id07868', 'id04119', 'id01989',
+                        'id07414',
+                        'id01041', 'id03178', 'id04232', 'id03127', 'id06209', 'id03677', 'id04006', 'id05850',
+                        'id02576',
+                        'id05594', 'id01541', 'id05055', 'id07354', 'id01224', 'id03524', 'id02445', 'id07663',
+                        'id05015',
+                        'id07494', 'id04950', 'id04478', 'id02685', 'id02542', 'id05714', 'id02465', 'id05654',
+                        'id05202',
+                        'id00419', 'id03981', 'id04366', 'id07396', 'id02019', 'id01822', 'id06816', 'id07621',
+                        'id07620', 'id04862']
 
     if not os.path.exists(args.video_folder):
         os.makedirs(args.video_folder)
