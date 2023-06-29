@@ -1,4 +1,3 @@
-import numpy as np
 from skimage import img_as_ubyte
 from skimage.transform import resize
 import imageio
@@ -115,15 +114,18 @@ def scheduler(data_list, fn, args):
 
 def save(path, frames, format):
     if format == '.mp4':
-        imageio.mimsave(path, frames)
+        imageio.v2.mimsave(path, frames)
     elif format in ['.png', '.jpg', '.webp']:
+        extra_kwargs = {}
+        if format == '.webp':
+            extra_kwargs['quality'] = 90
         if os.path.exists(path):
-            print ("Warning: skiping video %s" % os.path.basename(path))
+            print ("Warning: skipping %s because it is already processed" % os.path.basename(path))
             return
         else:
             os.makedirs(path)
         for j, frame in enumerate(frames):
-            imageio.imsave(os.path.join(path, str(j).zfill(7) + format), frames[j])
+            imageio.v3.imwrite(os.path.join(path, str(j).zfill(7) + format), frames[j], plugin='pillow', **extra_kwargs)
     else:
         print ("Unknown format %s" % format)
         exit()

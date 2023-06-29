@@ -229,7 +229,7 @@ if __name__ == "__main__":
     parser.add_argument("--min_frames", default=64, type=int, help='Mimimal number of frames')
     parser.add_argument("--max_frames", default=1024, type=int, help='Maximal number of frames')
     parser.add_argument("--min_size", default=256, type=int, help='Minimal allowed size')
-    parser.add_argument("--format", default='.png', help='Store format (.png, .mp4)')
+    parser.add_argument("--format", default='.webp', help='Store format (.png, .webp, .jpg, .mp4)')
 
     parser.add_argument("--annotations_folder", default='txt', help='Path to utterance annotations')
 

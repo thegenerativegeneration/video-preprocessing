@@ -17,6 +17,7 @@ DEVNULL = open(os.devnull, 'wb')
 def download(video_id, args):
     video_path = os.path.join(args.video_folder, video_id + ".mp4")
     if os.path.exists(video_path):
+        print("Video %s already downloaded" % video_id)
         return video_path
     subprocess.call([args.youtube, '-f', "''best/mp4''", '--write-auto-sub', '--write-sub',
                      '--sub-lang', 'en', '--skip-unavailable-fragments',
