@@ -20,7 +20,7 @@ protobuf==3.6.1
 pyparsing==2.3.1
 python-dateutil==2.7.5
 pytz==2018.9
-PyWavelets==1.1.1
+PyWavelets==1.2
 requests==2.21.0
 scikit-image==0.18.3
 scikit-learn==1.2.2
