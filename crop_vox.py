@@ -170,7 +170,7 @@ def run(params):
     # update the config options with the config file
     if args.estimate_bbox:
         import face_alignment
-        fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False)
+        fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=False)
     video_folder = os.path.join(args.annotations_folder, person_id)
     
     chunks_data = []

@@ -32,3 +32,4 @@ torch==2.0.1
 torchvision==0.15.2
 tqdm==4.29.1
 urllib3==1.24.1
+face-alignment==1.4.0
