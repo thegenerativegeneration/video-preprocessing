@@ -194,6 +194,8 @@ def run(params):
         fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=False)
     video_folder = os.path.join(args.annotations_folder, person_id)
 
+    print(f"There are {len(os.listdir(video_folder))} videos for {person_id}.")
+
     chunks_data = []
     for video_id in os.listdir(video_folder):
         try:
@@ -210,7 +212,7 @@ def run(params):
             if fmt['height'] >= min_height and fmt['width'] >= min_width:
                 has_high_resolution = True
                 break
-        print(f"Available resolutions: {available_resolutions}")
+        #print(f"Available resolutions: {available_resolutions}")
 
         if not has_high_resolution:
             print(f"Skipping {video_id} due to low resolution.")
@@ -256,6 +258,7 @@ def run(params):
                         os.remove(file)
         except Exception as e:
             print(e)
+    print("Done %s" % person_id)
     return chunks_data
 
 
