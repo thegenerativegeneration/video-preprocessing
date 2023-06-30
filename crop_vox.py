@@ -199,15 +199,13 @@ def run(params):
 
             continue
         has_high_resolution = False
-        available_resolutions = []
+
         for fmt in video_info_dict['formats']:
-            available_resolutions.append((fmt['height'], fmt['width'], fmt['video_ext']))
             if fmt['height'] is None or fmt['width'] is None or fmt['video_ext'] != 'mp4':
                 continue
             if fmt['height'] >= min_height and fmt['width'] >= min_width:
                 has_high_resolution = True
                 break
-        #print(f"Available resolutions: {available_resolutions}")
 
         if not has_high_resolution:
             print(f"Skipping {video_id} due to low resolution.")
