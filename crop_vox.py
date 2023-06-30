@@ -176,6 +176,7 @@ def split_in_utterance(person_id, video_id, args):
     return chunk_names
 
 
+
 def run(params):
     person_id, device_id, args = params
     min_width, min_height = args.min_width, args.min_height
@@ -190,18 +191,32 @@ def run(params):
 
     print(f"There are {len(os.listdir(video_folder))} videos for {person_id}.")
 
+    if os.path.exists('processed.txt'):
+        with open('processed.txt', 'r') as f:
+            skip = f.read().splitlines()
+    else:
+        skip = []
+
     chunks_data = []
     for video_id in os.listdir(video_folder):
+        if video_id in skip:
+            continue
+
         try:
             video_info_dict = video_info(video_id, youtube_dl_path=args.youtube)
         except Exception as e:
             print("Error getting video info for %s because %s" % (video_id, e))
 
+            with open('processed.txt', 'a') as f:
+                f.write(video_id + '\n')
             continue
+
         has_high_resolution = False
 
         for fmt in video_info_dict['formats']:
-            if fmt['height'] is None or fmt['width'] is None or fmt['video_ext'] != 'mp4':
+            if fmt.get('height') is None or fmt.get('width'):
+                continue
+            if fmt['height'] is None or fmt['width'] is None or fmt.get('video_ext') != 'mp4':
                 continue
             if fmt['height'] >= min_height and fmt['width'] >= min_width:
                 has_high_resolution = True
@@ -209,6 +224,8 @@ def run(params):
 
         if not has_high_resolution:
             print(f"Skipping {video_id} due to low resolution.")
+            with open('processed.txt', 'a') as f:
+                f.write(video_id + '\n')
             continue
         intermediate_files = []
         try:
@@ -251,6 +268,9 @@ def run(params):
                         os.remove(file)
         except Exception as e:
             print(e)
+        finally:
+            with open('processed.txt', 'a') as f:
+                f.write(video_id + '\n')
     print("Done %s" % person_id)
     return chunks_data
 
