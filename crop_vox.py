@@ -215,7 +215,6 @@ def run(params):
 
         for fmt in video_info_dict['formats']:
             if fmt.get('height') is None or fmt.get('width'):
-                print("Skipping %s due to missing height or width" % video_id)
                 continue
             if fmt['height'] is None or fmt['width'] is None or fmt.get('video_ext') != 'mp4':
                 continue
