@@ -1,3 +1,6 @@
+import json
+import subprocess
+
 from skimage import img_as_ubyte
 from skimage.transform import resize
 import imageio
@@ -90,9 +93,23 @@ def crop_bbox_from_frames(frame_list, tube_bbox, min_frames=16, image_shape=(256
     if image_shape is not None:
         out = [img_as_ubyte(resize(frame, image_shape, anti_aliasing=True)) for frame in selected]
     else:
-        out = selected
+        out = [img_as_ubyte(frame) for frame in selected]
  
     return out, [left, top, right, bot]
+
+
+def video_info(video_id):
+    # Get JSON output with video details
+    result = subprocess.run(
+        ['yt-dlp', f'https://www.youtube.com/watch?v={video_id}', '--dump-json', '--skip-download'],
+        capture_output=True,
+        text=True
+    )
+
+    # Load the output as a Python dictionary
+    video_info_dict = json.loads(result.stdout)
+    return video_info_dict
+
 
 from multiprocessing import Pool
 from itertools import cycle
@@ -103,14 +120,17 @@ def scheduler(data_list, fn, args):
     device_ids = args.device_ids.split(",")
     pool = Pool(processes=args.workers)
     args_list = cycle([args])
-    f = open(args.chunks_metadata, 'w')
+    if not os.path.exists(args.chunks_metadata):
+        with open(args.chunks_metadata, 'w') as f:
+            print("video_id,start,end,bbox,fps,width,height,partition", file=f)
     line = "{video_id},{start},{end},{bbox},{fps},{width},{height},{partition}"
-    print (line.replace('{', '').replace('}', ''), file=f)
-    for chunks_data in tqdm(pool.imap_unordered(fn, zip(data_list, cycle(device_ids), args_list))):
-        for data in chunks_data:
-            print (line.format(**data), file=f)
-            f.flush()
-    f.close()
+    with open(args.chunks_metadata, 'a') as f:
+        for chunks_data in tqdm(pool.imap_unordered(fn, zip(data_list, cycle(device_ids), args_list))):
+            print(chunks_data)
+            for data in chunks_data:
+                print(data)
+                print(line.format(**data), file=f)
+                f.flush()
 
 def save(path, frames, format):
     if format == '.mp4':

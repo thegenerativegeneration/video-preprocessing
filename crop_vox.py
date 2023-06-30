@@ -8,7 +8,7 @@ import subprocess
 import warnings
 import glob
 import time
-from util import bb_intersection_over_union, join, scheduler, crop_bbox_from_frames, save
+from util import bb_intersection_over_union, join, scheduler, crop_bbox_from_frames, save, video_info
 from argparse import ArgumentParser
 from skimage.transform import resize
 
@@ -20,11 +20,15 @@ REF_FPS = 25
 
 
 def extract_bbox(frame, refbbox, fa):
-    bboxes = fa.face_detector.detect_from_image(frame[..., ::-1])
-    if len(bboxes) != 0:
-        bbox = max([(bb_intersection_over_union(bbox, refbbox), tuple(bbox)) for bbox in bboxes])[1]
+    if fa is None:
+        bbox = refbbox
     else:
-        bbox = np.array([0, 0, 0, 0, 0])
+        bboxes = fa.face_detector.detect_from_image(frame[..., ::-1])
+        if len(bboxes) != 0:
+            bbox = max([(bb_intersection_over_union(bbox, refbbox), tuple(bbox)) for bbox in bboxes])[1]
+        else:
+            bbox = np.array([0, 0, 0, 0, 0])
+
     return np.maximum(np.array(bbox), 0)
 
 
@@ -37,6 +41,8 @@ def save_bbox_list(video_path, bbox_list):
 
 
 def estimate_bbox(person_id, video_id, video_path, fa, args):
+    if os.path.exists(os.path.join(args.bbox_folder, os.path.basename(video_path)[:-4] + '.txt')):
+        return
     utterance = video_path.split('#')[1]
     utterance = os.path.join(args.annotations_folder, person_id, video_id, utterance)
     reader = imageio.get_reader(video_path)
@@ -189,9 +195,11 @@ def run(params):
     min_width, min_height = args.min_width, args.min_height
     os.environ['CUDA_VISIBLE_DEVICES'] = device_id
     # update the config options with the config file
-    if args.estimate_bbox:
+    if args.estimate_bbox and not args.use_original_bbox:
         import face_alignment
         fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=False)
+    else:
+        fa = None
     video_folder = os.path.join(args.annotations_folder, person_id)
 
     print(f"There are {len(os.listdir(video_folder))} videos for {person_id}.")
@@ -261,6 +269,10 @@ def run(params):
     print("Done %s" % person_id)
     return chunks_data
 
+def args_image_shape(x):
+    if x == 'None':
+        return None
+    return tuple(map(int, x.split(',')))
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -272,7 +284,7 @@ if __name__ == "__main__":
     parser.add_argument("--min_height", default=1080, type=int, help='Minimal allowed height')
 
     parser.add_argument("--iou_with_initial", type=float, default=0.25, help="The minimal allowed iou with inital bbox")
-    parser.add_argument("--image_shape", default=(256, 256), type=lambda x: tuple(map(int, x.split(','))),
+    parser.add_argument("--image_shape", default=(256, 256), type=args_image_shape,
                         help="Image shape")
     parser.add_argument("--increase", default=0.1, type=float, help='Increase bbox by this amount')
     parser.add_argument("--min_frames", default=64, type=int, help='Mimimal number of frames')
@@ -304,6 +316,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--remove-intermediate-results", dest="remove_intermediate_results", action="store_true",
                         help="Remove intermediate videos")
+    parser.add_argument("--use_original_bbox", dest="use_original_bbox", action="store_true",
+                        help="Use original bbox")
 
     parser.set_defaults(download=True)
     parser.set_defaults(split_in_utterance=True)
