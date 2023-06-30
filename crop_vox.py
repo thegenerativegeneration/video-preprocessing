@@ -143,20 +143,6 @@ def download(video_id, min_width, min_height, args):
              video_path], stdout=DEVNULL, stderr=DEVNULL)
     return video_path
 
-
-def video_info(video_id):
-    # Get JSON output with video details
-    result = subprocess.run(
-        ['yt-dlp', f'https://www.youtube.com/watch?v={video_id}', '--dump-json', '--skip-download'],
-        capture_output=True,
-        text=True
-    )
-
-    # Load the output as a Python dictionary
-    video_info_dict = json.loads(result.stdout)
-    return video_info_dict
-
-
 def split_in_utterance(person_id, video_id, args):
     video_path = os.path.join(args.video_folder, video_id + ".mp4")
 
