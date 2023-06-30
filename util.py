@@ -98,10 +98,10 @@ def crop_bbox_from_frames(frame_list, tube_bbox, min_frames=16, image_shape=(256
     return out, [left, top, right, bot]
 
 
-def video_info(video_id):
+def video_info(video_id, youtube_dl_path='yt-dlp'):
     # Get JSON output with video details
     result = subprocess.run(
-        ['yt-dlp', f'https://www.youtube.com/watch?v={video_id}', '--dump-json', '--skip-download'],
+        [youtube_dl_path, f'https://www.youtube.com/watch?v={video_id}', '--dump-json', '--skip-download'],
         capture_output=True,
         text=True
     )

@@ -207,7 +207,7 @@ def run(params):
     chunks_data = []
     for video_id in os.listdir(video_folder):
         try:
-            video_info_dict = video_info(video_id)
+            video_info_dict = video_info(video_id, youtube_dl_path=args.youtube)
         except Exception as e:
             print("Error getting video info for %s because %s" % (video_id, e))
 
