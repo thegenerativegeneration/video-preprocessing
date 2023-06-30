@@ -213,9 +213,10 @@ def run(params):
 
         has_high_resolution = False
 
+        print(video_info_dict['formats'])
+
         for fmt in video_info_dict['formats']:
-            if fmt.get('height') is None or fmt.get('width'):
-                continue
+
             if fmt['height'] is None or fmt['width'] is None or fmt.get('video_ext') != 'mp4':
                 continue
             if fmt['height'] >= min_height and fmt['width'] >= min_width:
