@@ -121,6 +121,7 @@ def crop_video(person_id, video_id, video_path, args):
                 initial_bbox = bbox
                 start = i
                 tube_bbox = bbox
+                tube_bbox = bbox
                 frame_list = []
             tube_bbox = join(tube_bbox, bbox)
             frame_list.append(frame)
@@ -202,31 +203,33 @@ def run(params):
         if video_id in skip:
             continue
 
-        try:
-            video_info_dict = video_info(video_id, youtube_dl_path=args.youtube)
-        except Exception as e:
-            print("Error getting video info for %s because %s" % (video_id, e))
+        if min_height > 0 and min_width > 0:
+            try:
+                video_info_dict = video_info(video_id, youtube_dl_path=args.youtube)
+            except Exception as e:
+                print("Error getting video info for %s because %s" % (video_id, e))
 
-            with open('processed.txt', 'a') as f:
-                f.write(video_id + '\n')
-            continue
-
-        has_high_resolution = False
-
-        for fmt in video_info_dict['formats']:
-            if fmt.get('height') is None or fmt.get('width'):
+                with open('processed.txt', 'a') as f:
+                    f.write(video_id + '\n')
                 continue
-            if fmt['height'] is None or fmt['width'] is None or fmt.get('video_ext') != 'mp4':
-                continue
-            if fmt['height'] >= min_height and fmt['width'] >= min_width:
-                has_high_resolution = True
-                break
 
-        if not has_high_resolution:
-            print(f"Skipping {video_id} due to low resolution.")
-            with open('processed.txt', 'a') as f:
-                f.write(video_id + '\n')
-            continue
+            has_high_resolution = False
+
+            for fmt in video_info_dict['formats']:
+                if fmt.get('height') is None or fmt.get('width'):
+                    continue
+                if fmt['height'] is None or fmt['width'] is None or fmt.get('video_ext') != 'mp4':
+                    continue
+                if fmt['height'] >= min_height and fmt['width'] >= min_width:
+                    has_high_resolution = True
+                    break
+
+            if not has_high_resolution:
+                print(f"Skipping {video_id} due to low resolution.")
+                with open('processed.txt', 'a') as f:
+                    f.write(video_id + '\n')
+                continue
+
         intermediate_files = []
         try:
             if args.download:
