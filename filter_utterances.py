@@ -3,10 +3,11 @@
 import pandas as pd
 import os
 import shutil
-
+import argparse
 import tqdm
 
-annotations_folder = '/media/ph/BigBoy/Datasets/vox/vox2_dev_txt/txt'
+
+annotations_folder = './txt'
 assert os.path.exists(annotations_folder)
 
 df = pd.read_csv('./vox2_utterance_extra_metadata.csv', sep=',', converters={'id': lambda x: str(x), 'person_id': lambda x: str(x), 'utterance_id': lambda x: str(x)})
