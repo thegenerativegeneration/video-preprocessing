@@ -192,8 +192,9 @@ def run(params):
 
     print(f"There are {len(os.listdir(video_folder))} videos for {person_id}.")
 
-    if os.path.exists('processed.txt'):
-        with open('processed.txt', 'r') as f:
+    processed_list = args.processed_list
+    if os.path.exists(processed_list):
+        with open(processed_list, 'r') as f:
             skip = f.read().splitlines()
     else:
         skip = []
@@ -209,7 +210,7 @@ def run(params):
             except Exception as e:
                 print("Error getting video info for %s because %s" % (video_id, e))
 
-                with open('processed.txt', 'a') as f:
+                with open(processed_list, 'a') as f:
                     f.write(video_id + '\n')
                 continue
 
@@ -226,7 +227,7 @@ def run(params):
 
             if not has_high_resolution:
                 print(f"Skipping {video_id} due to low resolution.")
-                with open('processed.txt', 'a') as f:
+                with open(processed_list, 'a') as f:
                     f.write(video_id + '\n')
                 continue
 
@@ -272,7 +273,7 @@ def run(params):
         except Exception as e:
             print(e)
         finally:
-            with open('processed.txt', 'a') as f:
+            with open(processed_list, 'a') as f:
                 f.write(video_id + '\n')
     print("Done %s" % person_id)
     return chunks_data
@@ -326,6 +327,7 @@ if __name__ == "__main__":
                         help="Remove intermediate videos")
     parser.add_argument("--use_original_bbox", dest="use_original_bbox", action="store_true",
                         help="Use original bbox")
+    parser.add_argument("--processed-list", default='processed.txt', help="List of processed videos that should be skipped")
 
     parser.set_defaults(download=True)
     parser.set_defaults(split_in_utterance=True)
